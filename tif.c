@@ -38,6 +38,7 @@ typedef struct _tif_data{
   DWORD  width;          /* image width in pixels */
   DWORD  length;         /* image length in pixels */
   DWORD  rows_per_strip; /* rows per strip of data */
+  DWORD *strip_bytes;    /* size of each strip in bytes */
   DWORD *strip_offsets;  /* strip offsets for data */
   WORD   strip_count;    /* count for strips of data*/
 }TIFDATA;
@@ -55,6 +56,34 @@ static void read_hdr(char *filename, TIFHDR *hdrptr){
   }
   fclose(fptr);
 }
+
+static void read_strip_bytes(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
+  if(!dataptr){
+    fprintf(stderr, "invalid data argument\n");
+    exit(EXIT_FAILURE);
+  }
+  dataptr->strip_bytes = (DWORD*)malloc(sizeof(DWORD)*tag.data_count);
+  dataptr->strip_count = tag.data_count;
+  if(tag.data_count == 1){
+    *(dataptr->strip_bytes) = tag.data_offset;
+  }
+  else{
+    if(fseek(fptr, tag.data_offset, SEEK_SET) < 0){
+      fprintf(stderr, "error reading strip offset bytes\n");
+      exit(EXIT_FAILURE);
+    }
+    short bytes = (tag.type == 3)? 2 : 4;
+    int i;
+    for(i = 0; i < tag.data_count; i++){
+      memset((void*)&(dataptr->strip_bytes[i]), 0, sizeof(DWORD));
+      if(fread((void*)&(dataptr->strip_bytes[i]), 
+               bytes, 1, fptr) < 1){
+        fprintf(stderr, "error reading strip offset bytes\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+  }  
+} 
 
 static void read_strip_offsets(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
   if(!dataptr){
@@ -132,6 +161,15 @@ char *tif_get_data(char *filename){
         int i;
         for(i = 0; i < data.strip_count; i++){
           printf("[%d]: %X\n",i, data.strip_offsets[i]);
+        }
+      }
+      break;
+      case STRIP_BYTES:{
+        read_strip_bytes(fptr, &data, tag);
+        printf("strip bytes:\n");
+        int i;
+        for(i =0; i < data.strip_count; i++){
+          printf("[%d]: %d\n",i, data.strip_bytes[i]);
         }
       }
       break;

@@ -41,6 +41,7 @@ typedef struct _tif_data{
   DWORD *strip_bytes;    /* size of each strip in bytes */
   DWORD *strip_offsets;  /* strip offsets for data */
   WORD   strip_count;    /* count for strips of data*/
+  WORD   bits_per_sample;
 }TIFDATA;
 
 
@@ -55,6 +56,22 @@ static void read_hdr(char *filename, TIFHDR *hdrptr){
     exit(EXIT_FAILURE);
   }
   fclose(fptr);
+}
+
+static void read_bits_per_sample(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
+  if(!dataptr){
+    fprintf(stderr, "invalid data argument\n");
+    exit(EXIT_FAILURE);
+  }
+  if(fseek(fptr, tag.data_offset, SEEK_SET) < 0){
+    fprintf(stderr, "error reading bits per sample\n");
+    exit(EXIT_FAILURE);
+  }
+  if(fread((void*)&(dataptr->bits_per_sample), 
+           sizeof(WORD), 1, fptr) < 1){
+    fprintf(stderr, "error reading bits per sample\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 static void read_strip_bytes(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
@@ -117,6 +134,9 @@ char *tif_get_data(char *filename){
   TIFHDR hdr;
   TIFDATA data;
   read_hdr(filename, &hdr);
+  printf("id: %X\n", hdr.id);
+  printf("version: %X\n", hdr.version);
+  printf("ifd offset: %X\n", hdr.ifd_offset);
   FILE *fptr = NULL;
   if(!(fptr = fopen(filename, "rb"))){ 
     perror("error opening image");
@@ -131,6 +151,7 @@ char *tif_get_data(char *filename){
     fprintf(stderr, "error reading directory entries\n");
     exit(EXIT_FAILURE);
   }
+  printf("number of entries: %d\n", n_entries);
   int i;
   for(i = 0; i < n_entries; i++){
     TIFTAG tag;
@@ -171,6 +192,11 @@ char *tif_get_data(char *filename){
         for(i =0; i < data.strip_count; i++){
           printf("[%d]: %d\n",i, data.strip_bytes[i]);
         }
+      }
+      break;
+      case BITSPERSAMPLE:{
+        read_bits_per_sample(fptr, &data, tag);
+        printf("bits per sample: %d\n", data.bits_per_sample);
       }
       break;
     }

@@ -45,6 +45,7 @@ typedef struct _tif_data{
 }TIFDATA;
 
 
+
 static void free_data(TIFDATA *dataptr){
   dataptr->width = 0;
   dataptr->length = 0;
@@ -146,14 +147,12 @@ static void write_data(FILE *foutptr, FILE *finptr, TIFDATA data){
   fseek(finptr, 0, SEEK_END); // seek to end of file
   unsigned long size = ftell(finptr); // get current file pointer
   fseek(finptr, 0, SEEK_SET); // seek back to beginning of file
-  printf("size: %lu\n", size);
   BYTE mask = 0x0F;
   DWORD i, j, nibble_count;
   for(i = 0, nibble_count = 0; i < data.strip_count 
       && nibble_count < size * 2; i++){
     DWORD strip_offset = data.strip_offsets[i];
     DWORD strip_bytes = data.strip_bytes[i];
-    printf("strip offset: %X\n", strip_offset);
     if(fseek(foutptr, strip_offset, SEEK_SET) < 0){
       fprintf(stderr, "error reading data\n");
       exit(EXIT_FAILURE);
@@ -194,9 +193,6 @@ char *tif_get_data(char *filename){
   TIFHDR hdr;
   TIFDATA data;
   read_hdr(filename, &hdr);
-  printf("id: %X\n", hdr.id);
-  printf("version: %X\n", hdr.version);
-  printf("ifd offset: %X\n", hdr.ifd_offset);
   FILE *fptr = NULL;
   if(!(fptr = fopen(filename, "rb+"))){ 
     perror("error opening image");
@@ -211,7 +207,6 @@ char *tif_get_data(char *filename){
     fprintf(stderr, "error reading directory entries\n");
     exit(EXIT_FAILURE);
   }
-  printf("number of entries: %d\n", n_entries);
   int i;
   for(i = 0; i < n_entries; i++){
     TIFTAG tag;
@@ -223,35 +218,22 @@ char *tif_get_data(char *filename){
     switch(tag.tag_id){
       case IMAGE_LENGTH:{
         data.length = tag.data_offset;
-        printf("length: %d\n", data.length);
       }
       break;
       case IMAGE_WIDTH:{
         data.width = tag.data_offset;
-        printf("width: %d\n", data.width);
       }
       break;
       case ROWSPERSTRIP:{
-        data.rows_per_strip = tag.data_offset;
-        printf("rows: %u\n", data.rows_per_strip); 
+        data.rows_per_strip = tag.data_offset; 
       }
       break;
       case STRIP_OFFSETS:{
         read_strip_offsets(fptr, &data, tag);
-        printf("strip offsets:\n");
-        int i;
-        for(i = 0; i < data.strip_count; i++){
-          printf("[%d]: %X\n",i, data.strip_offsets[i]);
-        }
       }
       break;
       case STRIP_BYTES:{
         read_strip_bytes(fptr, &data, tag);
-        printf("strip bytes:\n");
-        int i;
-        for(i =0; i < data.strip_count; i++){
-          printf("[%d]: %X\n",i, data.strip_bytes[i]);
-        }
       }
       break;
       case BITSPERSAMPLE:{
@@ -260,11 +242,6 @@ char *tif_get_data(char *filename){
       }
       break;
     }
-    printf("id: %d\n", tag.tag_id);
-    printf("scalar type: %d\n", tag.type);
-    printf("data count: %d\n", tag.data_count);
-    printf("data offset: %X\n", tag.data_offset);
-    printf("-----------------------\n");
     if(fseek(fptr, pos, SEEK_SET) < 0){
       fprintf(stderr, "error reading tag data\n");
       exit(EXIT_FAILURE);

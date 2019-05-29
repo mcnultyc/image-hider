@@ -142,40 +142,47 @@ static void read_strip_offsets(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
   }
 }
 
-static void write_data(FILE *fptr, TIFDATA data){
-  char *name = "yo carlos this is the name. money is the game.";
-  printf("length: %d\n", strlen(name));
+static void write_data(FILE *foutptr, FILE *finptr, TIFDATA data){
+  fseek(finptr, 0, SEEK_END); // seek to end of file
+  unsigned long size = ftell(finptr); // get current file pointer
+  fseek(finptr, 0, SEEK_SET); // seek back to beginning of file
+  printf("size: %lu\n", size);
   BYTE mask = 0x0F;
   DWORD i, j, nibble_count;
   for(i = 0, nibble_count = 0; i < data.strip_count 
-      && nibble_count < strlen(name) * 2; i++){
+      && nibble_count < size * 2; i++){
     DWORD strip_offset = data.strip_offsets[i];
     DWORD strip_bytes = data.strip_bytes[i];
     printf("strip offset: %X\n", strip_offset);
-    if(fseek(fptr, strip_offset, SEEK_SET) < 0){
+    if(fseek(foutptr, strip_offset, SEEK_SET) < 0){
       fprintf(stderr, "error reading data\n");
       exit(EXIT_FAILURE);
     }
+    BYTE encoded;
     for(j = 0; j < strip_bytes 
-        && nibble_count < strlen(name) * 2; j++, nibble_count++){
+        && nibble_count < size * 2; j++, nibble_count++){
       BYTE byte;
-      if(fread((void*)&byte, sizeof(BYTE), 1, fptr) < 1){
+      if(fread((void*)&byte, sizeof(BYTE), 1, foutptr) < 1){
         fprintf(stderr, "error reading data\n");
         exit(EXIT_FAILURE);
       }
       if(nibble_count % 2 == 0){
-        BYTE nibble = (name[nibble_count/2] & 0xF0) >> 4;
+        if(fread((void*)&encoded, sizeof(BYTE), 1, finptr) < 1){
+          fprintf(stderr, "error reading data\n");
+          exit(EXIT_FAILURE);
+        }
+        BYTE nibble = (encoded & 0xF0) >> 4;
         byte = (byte & 0xF0) | nibble;
       }
       else{
-        BYTE nibble = (name[nibble_count/2] & 0x0F);
+        BYTE nibble = (encoded & 0x0F);
         byte = (byte & 0xF0) | nibble;        
       }
-      if(fseek(fptr, -sizeof(BYTE), SEEK_CUR) < 0){
+      if(fseek(foutptr, -sizeof(BYTE), SEEK_CUR) < 0){
         fprintf(stderr, "error seeking\n");
         exit(EXIT_FAILURE);
       }
-      if(fwrite((void*)&byte, sizeof(BYTE), 1, fptr) < 1){
+      if(fwrite((void*)&byte, sizeof(BYTE), 1, foutptr) < 1){
         fprintf(stderr, "error updating image\n");
         exit(EXIT_FAILURE);
       }
@@ -263,7 +270,12 @@ char *tif_get_data(char *filename){
       exit(EXIT_FAILURE);
     }
   }
-  write_data(fptr, data);
+  FILE *finptr = fopen("war_and_peace.zip", "rb");
+  if(!finptr){
+    fprintf(stderr, "file not found\n");
+    exit(EXIT_FAILURE);
+  }
+  write_data(fptr,finptr, data);
   free_data(&data);
   fclose(fptr);
   return NULL;

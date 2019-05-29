@@ -22,7 +22,7 @@ enum TAG_NAME{
 typedef struct _tif_hdr{ 
   WORD id;          /* byte order identifier */
   WORD version;     /* TIFF version (0x2a) */
-  WORD ifd_offset;  /* offset of image file directory */
+  DWORD ifd_offset;  /* offset of image file directory */
 }TIFHDR;
 
 /* TIFF tag format */
@@ -41,9 +41,21 @@ typedef struct _tif_data{
   DWORD *strip_bytes;    /* size of each strip in bytes */
   DWORD *strip_offsets;  /* strip offsets for data */
   WORD   strip_count;    /* count for strips of data*/
-  WORD   bits_per_sample;
+  WORD   bits_per_sample;/* bit depth of the image */
 }TIFDATA;
 
+
+static void free_data(TIFDATA *dataptr){
+  dataptr->width = 0;
+  dataptr->length = 0;
+  dataptr->rows_per_strip = 0;
+  free(dataptr->strip_bytes);
+  free(dataptr->strip_offsets);
+  dataptr->strip_bytes = NULL;
+  dataptr->strip_offsets = NULL;
+  dataptr->strip_count = 0;
+  dataptr->bits_per_sample = 0;
+}
 
 static void read_hdr(char *filename, TIFHDR *hdrptr){ 
   FILE *fptr = NULL;
@@ -130,6 +142,47 @@ static void read_strip_offsets(FILE *fptr, TIFDATA *dataptr, TIFTAG tag){
   }
 }
 
+static void write_data(FILE *fptr, TIFDATA data){
+  char *name = "yo carlos this is the name. money is the game.";
+  printf("length: %d\n", strlen(name));
+  BYTE mask = 0x0F;
+  DWORD i, j, nibble_count;
+  for(i = 0, nibble_count = 0; i < data.strip_count 
+      && nibble_count < strlen(name) * 2; i++){
+    DWORD strip_offset = data.strip_offsets[i];
+    DWORD strip_bytes = data.strip_bytes[i];
+    printf("strip offset: %X\n", strip_offset);
+    if(fseek(fptr, strip_offset, SEEK_SET) < 0){
+      fprintf(stderr, "error reading data\n");
+      exit(EXIT_FAILURE);
+    }
+    for(j = 0; j < strip_bytes 
+        && nibble_count < strlen(name) * 2; j++, nibble_count++){
+      BYTE byte;
+      if(fread((void*)&byte, sizeof(BYTE), 1, fptr) < 1){
+        fprintf(stderr, "error reading data\n");
+        exit(EXIT_FAILURE);
+      }
+      if(nibble_count % 2 == 0){
+        BYTE nibble = (name[nibble_count/2] & 0xF0) >> 4;
+        byte = (byte & 0xF0) | nibble;
+      }
+      else{
+        BYTE nibble = (name[nibble_count/2] & 0x0F);
+        byte = (byte & 0xF0) | nibble;        
+      }
+      if(fseek(fptr, -sizeof(BYTE), SEEK_CUR) < 0){
+        fprintf(stderr, "error seeking\n");
+        exit(EXIT_FAILURE);
+      }
+      if(fwrite((void*)&byte, sizeof(BYTE), 1, fptr) < 1){
+        fprintf(stderr, "error updating image\n");
+        exit(EXIT_FAILURE);
+      }
+    }     
+  }
+}
+
 char *tif_get_data(char *filename){
   TIFHDR hdr;
   TIFDATA data;
@@ -138,7 +191,7 @@ char *tif_get_data(char *filename){
   printf("version: %X\n", hdr.version);
   printf("ifd offset: %X\n", hdr.ifd_offset);
   FILE *fptr = NULL;
-  if(!(fptr = fopen(filename, "rb"))){ 
+  if(!(fptr = fopen(filename, "rb+"))){ 
     perror("error opening image");
     exit(EXIT_FAILURE);
   } 
@@ -190,7 +243,7 @@ char *tif_get_data(char *filename){
         printf("strip bytes:\n");
         int i;
         for(i =0; i < data.strip_count; i++){
-          printf("[%d]: %d\n",i, data.strip_bytes[i]);
+          printf("[%d]: %X\n",i, data.strip_bytes[i]);
         }
       }
       break;
@@ -210,5 +263,8 @@ char *tif_get_data(char *filename){
       exit(EXIT_FAILURE);
     }
   }
+  write_data(fptr, data);
+  free_data(&data);
+  fclose(fptr);
   return NULL;
 }

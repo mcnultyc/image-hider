@@ -5,7 +5,7 @@
 
 int main(int argc, char *argv[]){ 
 
-  char *data = tif_get_data("image.tif");
+  char *data = tif_get_data("garbage.tif");
   if(!data){
     printf("works\n");
   }

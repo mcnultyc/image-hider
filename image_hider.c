@@ -5,10 +5,10 @@
 
 int main(int argc, char *argv[]){ 
 
-  char *data = tif_get_data("garbage.tif");
-  if(!data){
+  tif_read_data("garbage3.tif", "somegarabeheere.zip");
+  //if(!data){
     //printf("works\n");
-  }
+  //}
   
   return 0;
 }

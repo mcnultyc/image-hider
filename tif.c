@@ -12,6 +12,7 @@ enum TAG_NAME{
   IMAGE_WIDTH     = 256,  /* image width in pixels */
   IMAGE_LENGTH    = 257,  /* image length in pixels */
   BITSPERSAMPLE   = 258,  /**/
+  COMPRESSION     = 259,  /* compression scheme used */
   STRIP_OFFSETS   = 273,  /* offsets for strips */
   SAMPLESPERPIXEL = 277,  /**/
   ROWSPERSTRIP    = 278,  /* rows of contiguous data per strip*/
@@ -42,6 +43,7 @@ typedef struct _tif_data{
   DWORD *strip_offsets;  /* strip offsets for data */
   WORD   strip_count;    /* count for strips of data*/
   WORD   bits_per_sample;/* bit depth of the image */
+  BYTE   compression;    /* compression scheme used by image */
 }TIFDATA;
 
 
@@ -169,29 +171,26 @@ static void get_data(char *filename, TIFDATA *dataptr){
     }
     long pos = ftell(fptr); 
     switch(tag.tag_id){
-      case IMAGE_LENGTH:{
+      case IMAGE_LENGTH:
         dataptr->length = tag.data_offset;
-      }
       break;
-      case IMAGE_WIDTH:{
+      case IMAGE_WIDTH:
         dataptr->width = tag.data_offset;
-      }
       break;
-      case ROWSPERSTRIP:{
+      case ROWSPERSTRIP:
         dataptr->rows_per_strip = tag.data_offset; 
-      }
       break;
-      case STRIP_OFFSETS:{
+      case STRIP_OFFSETS:
         read_strip_offsets(fptr, dataptr, tag);
-      }
       break;
-      case STRIP_BYTES:{
+      case STRIP_BYTES:
         read_strip_bytes(fptr, dataptr, tag);
-      }
       break;
-      case BITSPERSAMPLE:{
+      case BITSPERSAMPLE:
         read_bits_per_sample(fptr, dataptr, tag);
-      }
+      break;
+      case COMPRESSION:
+        dataptr->compression = tag.data_offset;
       break;
     }
     if(fseek(fptr, pos, SEEK_SET) < 0){
@@ -407,7 +406,17 @@ static void write_data(FILE *in, FILE *img, FILE *out, unsigned bits, TIFDATA da
 }
 
 
-void tif_read_data(char *filename_img, char *filename_out){
+static int get_useable_size(TIFDATA data, int bits){
+  int bit_factor = 8/bits;
+  int useable_size = 0;
+  int i;
+  for(i = 0; i < data.strip_count; i++){
+    useable_size += data.strip_bytes[i]/bit_factor;
+  }
+  return useable_size; 
+}
+
+void tif_read_data(char *filename_img, char *filename_out, int bits){
   FILE *img, *out;
   if(!(img = fopen(filename_img, "rb"))){ 
     perror("error opening input image");
@@ -419,15 +428,23 @@ void tif_read_data(char *filename_img, char *filename_out){
   }
   TIFDATA data;
   get_data(filename_img, &data);
+  if(data.compression != 1){
+    fprintf(stderr, "only uncompressed images supported\n");
+    exit(EXIT_FAILURE);
+  }
   read_data(img, out, 1, data);
   free_data(&data);
   fclose(img);
   fclose(out);
 }
 
-void tif_write_data(char *filename_in, char *filename_img){
+void tif_write_data(char *filename_in, char *filename_img, int bits){
   TIFDATA data;
   get_data(filename_img, &data);
+  if(data.compression != 1){
+    fprintf(stderr, "only uncompressed images supported\n");
+    exit(EXIT_FAILURE);
+  }
   FILE *in, *img;
   if(!(in = fopen(filename_in, "rb"))){
     fprintf(stderr, "error opening input file\n");
@@ -435,6 +452,20 @@ void tif_write_data(char *filename_in, char *filename_img){
   }
   if(!(img = fopen(filename_img, "rb+"))){
     fprintf(stderr, "error opening image file\n");
+    exit(EXIT_FAILURE);
+  }
+  fseek(in, 0, SEEK_END);
+  unsigned size = ftell(in); 
+  fseek(in, 0, SEEK_SET); 
+  if(size == 0){
+    fprintf(stderr, "%s is empty\n", filename_in);
+    exit(EXIT_FAILURE);
+  }
+  int useable_size = get_useable_size(data, bits);
+  if(size > useable_size){
+    fprintf(stderr, 
+        "%s has only %u useable bytes for a %u bit encoding. %u are required.\n", 
+        filename_img, useable_size, bits, size);
     exit(EXIT_FAILURE);
   }
   write_data(in, img, img, 1, data);

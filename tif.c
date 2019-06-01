@@ -271,15 +271,17 @@ static void read_data(FILE *img, FILE *out, unsigned bits, TIFDATA data){
     fprintf(stderr, "error reading image data\n");
     exit(EXIT_FAILURE);
   } 
-  BYTE encoded[8];
-  if(fread((void*)encoded, sizeof(encoded), 1, img) < 1){
+  int bit_factor = 8/bits;
+  int encoded_size = sizeof(unsigned)*bit_factor;
+  BYTE *encoded = (BYTE*)malloc(encoded_size);
+  if(fread((void*)encoded, encoded_size, 1, img) < 1){
     fprintf(stderr, "error reading data\n");
     exit(EXIT_FAILURE);
   }
   unsigned size;
-  decode((BYTE*)&size, sizeof(size), 4, encoded, sizeof(encoded));
-  data.strip_bytes[0] -= 8;
-  data.strip_offsets[0] += 8;
+  decode((BYTE*)&size, sizeof(size), bits, encoded, encoded_size);
+  data.strip_bytes[0] -= encoded_size;
+  data.strip_offsets[0] += encoded_size;
   unsigned byte_count = 0;
   int i;
   for(i = 0; i < data.strip_count && byte_count < size; i++){
@@ -372,25 +374,27 @@ static void write_data(FILE *in, FILE *img, FILE *out, unsigned bits, TIFDATA da
   fseek(in, 0, SEEK_END);
   unsigned size = ftell(in); 
   fseek(in, 0, SEEK_SET); 
-  BYTE encoded[8];
-  if(fread((void*)encoded, sizeof(encoded), 1, img) < 1){
+  int bit_factor = 8/bits;
+  int encoded_size = sizeof(unsigned)*bit_factor;
+  BYTE *encoded = (BYTE*)malloc(encoded_size);
+  if(fread((void*)encoded, encoded_size, 1, img) < 1){
     fprintf(stderr, "error reading data\n");
     exit(EXIT_FAILURE);
   }
-  encode(encoded, sizeof(encoded), 4, 
+  encode(encoded, encoded_size, bits, 
         (BYTE*)&size, sizeof(unsigned));
   if(img == out){
-    if(fseek(out, -sizeof(encoded), SEEK_CUR) < 0){
+    if(fseek(out, -encoded_size, SEEK_CUR) < 0){
       fprintf(stderr, "error resetting position\n");
       exit(EXIT_FAILURE);
     }
   }
-  if(fwrite((void*)encoded, sizeof(encoded), 1, out) < 1){
+  if(fwrite((void*)encoded, encoded_size, 1, out) < 1){
     fprintf(stderr, "error encoding file size\n");
     exit(EXIT_FAILURE);
   }
-  data.strip_bytes[0] -= 8;
-  data.strip_offsets[0] += 8;
+  data.strip_bytes[0] -= encoded_size;
+  data.strip_offsets[0] += encoded_size;
   unsigned byte_count = 0;
   int i;
   for(i = 0; i < data.strip_count && byte_count < size; i++){
@@ -399,6 +403,7 @@ static void write_data(FILE *in, FILE *img, FILE *out, unsigned bits, TIFDATA da
                   size, byte_count, bits,
                   in, img, out);
   }
+  free(encoded);
 }
 
 
@@ -414,7 +419,7 @@ void tif_read_data(char *filename_img, char *filename_out){
   }
   TIFDATA data;
   get_data(filename_img, &data);
-  read_data(img, out, 4, data);
+  read_data(img, out, 1, data);
   free_data(&data);
   fclose(img);
   fclose(out);
@@ -432,7 +437,7 @@ void tif_write_data(char *filename_in, char *filename_img){
     fprintf(stderr, "error opening image file\n");
     exit(EXIT_FAILURE);
   }
-  write_data(in, img, img, 4, data);
+  write_data(in, img, img, 1, data);
   free_data(&data);
   fclose(in);
   fclose(img);

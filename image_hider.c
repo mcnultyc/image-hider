@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 #include "tif.h"
 
 int main(int argc, char *argv[]){ 
@@ -25,7 +26,9 @@ int main(int argc, char *argv[]){
         filename = argv[i];
       }
     }
-  } 
+  }
+
+
   if((decode == 0 && encode == 0) ||
     !filename_img || !filename){
     fprintf(stderr, "invalid options\n");

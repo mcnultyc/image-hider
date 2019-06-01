@@ -7,11 +7,18 @@
 #include <string.h>
 #include "tif.h"
 
-typedef uint8_t  ubyte;
-typedef uint16_t ushort;
-typedef uint32_t uint;
 
-enum TAG_NAME{
+typedef enum{
+  OK                = 0,
+  FILE_ERROR        = 1,
+  FILE_WRITE_ERROR  = 2,
+  FILE_READ_ERROR   = 3,
+  FILE_NOT_FOUND    = 4,
+  NO_IMAGE_DATA     = 5,
+  INVALID_FILE_TYPE = 4
+}error_t;
+
+typedef enum{
   IMAGE_WIDTH     = 256,  /* image width in pixels */
   IMAGE_LENGTH    = 257,  /* image length in pixels */
   BITSPERSAMPLE   = 258,  /**/
@@ -20,35 +27,43 @@ enum TAG_NAME{
   SAMPLESPERPIXEL = 277,  /**/
   ROWSPERSTRIP    = 278,  /* rows of contiguous data per strip*/
   STRIP_BYTES     = 279   /**/
-};
+}tag_t;
 
 /* TIFF header format */
 typedef struct{ 
-  ushort id;          /* ubyte order identifier */
-  ushort version;     /* TIFF version (0x2a) */
-  uint   ifd_offset;  /* offset of image file directory */
+  uint16_t id;          /* uint8_t order identifier */
+  uint16_t version;     /* TIFF version (0x2a) */
+  uint32_t ifd_offset;  /* offset of image file directory */
 }tif_hdr;
 
 /* TIFF tag format */
 typedef struct{ 
-  ushort  tag_id;      /* tag identifier*/
-  ushort  type;        /* scalar type of data */
-  uint    data_count;  /* number of items in data */
-  uint    data_offset; /* ubyte offset of data */
+  uint16_t  tag_id;      /* tag identifier*/
+  uint16_t  type;        /* scalar type of data */
+  uint32_t  data_count;  /* number of items in data */
+  uint32_t  data_offset; /* uint8_t offset of data */
 }tif_tag;
 
 /* TIFF data information */
 typedef struct{ 
-  uint   width;          /* image width in pixels */
-  uint   length;         /* image length in pixels */
-  uint   rows_per_strip; /* rows per strip of data */
-  uint  *strip_bytes;    /* size of each strip in bytes */
-  uint  *strip_offsets;  /* strip offsets for data */
-  ushort strip_count;    /* count for strips of data*/
-  ushort bits_per_sample;/* bit depth of the image */
-  ubyte  compression;    /* compression scheme used by image */
+  uint32_t   width;          /* image width in pixels */
+  uint32_t   length;         /* image length in pixels */
+  uint32_t   rows_per_strip; /* rows per strip of data */
+  uint32_t  *strip_bytes;    /* size of each strip in bytes */
+  uint32_t  *strip_offsets;  /* strip offsets for data */
+  uint16_t   strip_count;    /* count for strips of data*/
+  uint16_t   bits_per_sample;/* bit depth of the image */
+  uint8_t    compression;    /* compression scheme used by image */
 }tif_data;
 
+/* header for encoding */
+typedef struct{
+  uint16_t version;  /* version of image hider (0x2019) */
+  uint16_t seq;      /* sequence number of segment */
+  uint32_t segments; /* total number of segments */
+  uint32_t size;     /* size in bytes of the image encoded in segment */
+  uint8_t  bits;     /* number of bits of encoding: 1, 2 of 4 */
+}hdr;
 
 static void free_data(tif_data *dataptr){
   dataptr->width = 0;
@@ -62,10 +77,9 @@ static void free_data(tif_data *dataptr){
   dataptr->bits_per_sample = 0;
 }
 
-static void read_hdr(char *filename, tif_hdr *hdrptr){ 
+static error_t read_hdr(char *filename, tif_hdr *hdrptr){ 
   FILE *fptr = NULL;
   if(!(fptr = fopen(filename, "rb"))){ 
-    perror("error opening image");
     exit(EXIT_FAILURE);
   }
   if(fread((void*)hdrptr, sizeof(tif_hdr), 1, fptr) < 1){ 
@@ -73,6 +87,7 @@ static void read_hdr(char *filename, tif_hdr *hdrptr){
     exit(EXIT_FAILURE);
   }
   fclose(fptr);
+  return OK;
 }
 
 static void read_bits_per_sample(FILE *fptr, tif_data *dataptr, tif_tag tag){
@@ -85,7 +100,7 @@ static void read_bits_per_sample(FILE *fptr, tif_data *dataptr, tif_tag tag){
     exit(EXIT_FAILURE);
   }
   if(fread((void*)&(dataptr->bits_per_sample), 
-           sizeof(ushort), 1, fptr) < 1){
+           sizeof(uint16_t), 1, fptr) < 1){
     fprintf(stderr, "error reading bits per sample\n");
     exit(EXIT_FAILURE);
   }
@@ -96,7 +111,7 @@ static void read_strip_bytes(FILE *fptr, tif_data *dataptr, tif_tag tag){
     fprintf(stderr, "invalid data argument\n");
     exit(EXIT_FAILURE);
   }
-  dataptr->strip_bytes = (uint*)malloc(sizeof(uint)*tag.data_count);
+  dataptr->strip_bytes = (uint32_t*)malloc(sizeof(uint32_t)*tag.data_count);
   dataptr->strip_count = tag.data_count;
   if(tag.data_count == 1){
     *(dataptr->strip_bytes) = tag.data_offset;
@@ -109,7 +124,7 @@ static void read_strip_bytes(FILE *fptr, tif_data *dataptr, tif_tag tag){
     short bytes = (tag.type == 3)? 2 : 4;
     int i;
     for(i = 0; i < tag.data_count; i++){
-      memset((void*)&(dataptr->strip_bytes[i]), 0, sizeof(uint));
+      memset((void*)&(dataptr->strip_bytes[i]), 0, sizeof(uint32_t));
       if(fread((void*)&(dataptr->strip_bytes[i]), 
                bytes, 1, fptr) < 1){
         fprintf(stderr, "error reading strip offset bytes\n");
@@ -125,7 +140,7 @@ static void read_strip_offsets(FILE *fptr, tif_data *dataptr, tif_tag tag){
     exit(EXIT_FAILURE);
   }
   dataptr->strip_count = tag.data_count;
-  dataptr->strip_offsets = (uint*)malloc(sizeof(uint)*tag.data_count);
+  dataptr->strip_offsets = (uint32_t*)malloc(sizeof(uint32_t)*tag.data_count);
   if(tag.data_count == 1){
     *(dataptr->strip_offsets) = tag.data_offset;
   }
@@ -137,7 +152,7 @@ static void read_strip_offsets(FILE *fptr, tif_data *dataptr, tif_tag tag){
     short bytes = (tag.type == 3)? 2 : 4;
     int i;
     for(i = 0; i < tag.data_count; i++){
-      memset((void*)&(dataptr->strip_offsets[i]), 0, sizeof(uint));
+      memset((void*)&(dataptr->strip_offsets[i]), 0, sizeof(uint32_t));
       if(fread((void*)&(dataptr->strip_offsets[i]), 
                bytes, 1, fptr) < 1){
         fprintf(stderr, "error reading strip offset\n");
@@ -159,8 +174,8 @@ static void get_data(char *filename, tif_data *dataptr){
     perror("error seeking directory offset");
     exit(EXIT_FAILURE);
   }
-  ushort n_entries;
-  if(fread((void*)&n_entries, sizeof(ushort), 1, fptr) < 1){
+  uint16_t n_entries;
+  if(fread((void*)&n_entries, sizeof(uint16_t), 1, fptr) < 1){
     fprintf(stderr, "error reading directory entries\n");
     exit(EXIT_FAILURE);
   }
@@ -203,8 +218,8 @@ static void get_data(char *filename, tif_data *dataptr){
   fclose(fptr);
 }
 
-static void decode(ubyte *decoded, unsigned decoded_size, unsigned bits, 
-                   ubyte *bytes, unsigned bytes_size){
+static void decode(uint8_t *decoded, unsigned decoded_size, unsigned bits, 
+                   uint8_t *bytes, unsigned bytes_size){
   if(bits == 0 || 8 % bits != 0){
     fprintf(stderr, "bits to decode must be powers of 2 <= 8\n");
     exit(EXIT_FAILURE);
@@ -214,8 +229,8 @@ static void decode(ubyte *decoded, unsigned decoded_size, unsigned bits,
     fprintf(stderr, "invalid bytes for bit factor\n");
     exit(EXIT_FAILURE);
   }
-  ubyte byte_mask = 0x80;
-  ubyte decode_mask = 0x01;
+  uint8_t byte_mask = 0x80;
+  uint8_t decode_mask = 0x01;
   int b;
   for(b = 1; b < bits; b++){
     byte_mask |= byte_mask >> 1;
@@ -224,28 +239,28 @@ static void decode(ubyte *decoded, unsigned decoded_size, unsigned bits,
   memset((void*)decoded, 0, decoded_size);
   int i, j;
   for(i = 0, j = 0; i < decoded_size && j < bytes_size; i++){
-    ubyte mask = byte_mask;
+    uint8_t mask = byte_mask;
     int b;
     for(b = 0; b < bit_factor; b++, j++){
       unsigned shift = (bit_factor - (b+1))*bits;
-      ubyte ubyte = (bytes[j] & decode_mask) << shift;
-      decoded[i] = decoded[i] | ubyte; 
+      uint8_t uint8_t = (bytes[j] & decode_mask) << shift;
+      decoded[i] = decoded[i] | uint8_t; 
       mask >>= bit_factor;
     } 
   }
 }
 
-static int read_strip(uint strip_offset, uint strip_bytes, 
-                      uint size, uint byte_count, unsigned bits,
+static int read_strip(uint32_t strip_offset, uint32_t strip_bytes, 
+                      uint32_t size, uint32_t byte_count, unsigned bits,
                       FILE *img, FILE *out){
   if(fseek(img, strip_offset, SEEK_SET) < 0){
     fprintf(stderr, "error seeking strip offset\n");
     exit(EXIT_FAILURE);
   }
   int bit_factor = 8/bits;
-  ubyte *bytes = (ubyte*)malloc(bit_factor);
+  uint8_t *bytes = (uint8_t*)malloc(bit_factor);
   memset((void*)bytes, 0, bit_factor);
-  ubyte byte;
+  uint8_t byte;
   int i;
   for(i = 0; i < strip_bytes && byte_count < size; 
                 i += bit_factor, byte_count++){
@@ -253,8 +268,8 @@ static int read_strip(uint strip_offset, uint strip_bytes,
       fprintf(stderr, "error reading data\n");
       exit(EXIT_FAILURE);
     }
-    decode((ubyte*)&byte, 1, bits, bytes, bit_factor); 
-    if(fwrite((void*)&byte, sizeof(ubyte), 1, out) < 1){
+    decode((uint8_t*)&byte, 1, bits, bytes, bit_factor); 
+    if(fwrite((void*)&byte, sizeof(uint8_t), 1, out) < 1){
       fprintf(stderr, "error updating image\n");
       exit(EXIT_FAILURE);
     }
@@ -274,13 +289,13 @@ static void read_data(FILE *img, FILE *out, unsigned bits, tif_data data){
   } 
   int bit_factor = 8/bits;
   int encoded_size = sizeof(unsigned)*bit_factor;
-  ubyte *encoded = (ubyte*)malloc(encoded_size);
+  uint8_t *encoded = (uint8_t*)malloc(encoded_size);
   if(fread((void*)encoded, encoded_size, 1, img) < 1){
     fprintf(stderr, "error reading data\n");
     exit(EXIT_FAILURE);
   }
   unsigned size;
-  decode((ubyte*)&size, sizeof(size), bits, encoded, encoded_size);
+  decode((uint8_t*)&size, sizeof(size), bits, encoded, encoded_size);
   data.strip_bytes[0] -= encoded_size;
   data.strip_offsets[0] += encoded_size;
   unsigned byte_count = 0;
@@ -291,11 +306,12 @@ static void read_data(FILE *img, FILE *out, unsigned bits, tif_data data){
                   size, byte_count, bits,
                   img, out);
   }
+  free(encoded);
 }
 
 
-static void encode(ubyte *encoded, unsigned encoded_size, unsigned bits, 
-                   ubyte *bytes, unsigned bytes_size){
+static void encode(uint8_t *encoded, unsigned encoded_size, unsigned bits, 
+                   uint8_t *bytes, unsigned bytes_size){
   if(bits == 0 || 8 % bits != 0){
     fprintf(stderr, "bits to encode must be powers of 2 <= 8\n");
     exit(EXIT_FAILURE);
@@ -305,8 +321,8 @@ static void encode(ubyte *encoded, unsigned encoded_size, unsigned bits,
     fprintf(stderr, "invalid bytes for bit factor\n");
     exit(EXIT_FAILURE);
   }
-  ubyte byte_mask = 0x80;
-  ubyte encode_mask = 0x01;
+  uint8_t byte_mask = 0x80;
+  uint8_t encode_mask = 0x01;
   int b;
   for(b = 1; b < bits; b++){
     byte_mask |= byte_mask >> 1;
@@ -314,32 +330,32 @@ static void encode(ubyte *encoded, unsigned encoded_size, unsigned bits,
   }
   int i, j;
   for(i = 0, j = 0; i < bytes_size && j < encoded_size; i++){
-    ubyte mask = byte_mask;
+    uint8_t mask = byte_mask;
     int b;
     for(b = 0; b < bit_factor; b++, j++){
       unsigned shift = (bit_factor - (b+1)) * bits;
-      ubyte ubyte = (bytes[i] & mask) >> shift;
-      encoded[j] = (encoded[j] & ~encode_mask) | ubyte; 
+      uint8_t uint8_t = (bytes[i] & mask) >> shift;
+      encoded[j] = (encoded[j] & ~encode_mask) | uint8_t; 
       mask >>= bits; 
     } 
   }
 }
 
-static int write_strip(uint strip_offset, uint strip_bytes, 
-                       uint size, uint byte_count, unsigned bits,
+static int write_strip(uint32_t strip_offset, uint32_t strip_bytes, 
+                       uint32_t size, uint32_t byte_count, unsigned bits,
                        FILE *in, FILE *img, FILE *out){
   if(fseek(img, strip_offset, SEEK_SET) < 0){
     fprintf(stderr, "error seeking strip offset\n");
     exit(EXIT_FAILURE);
   }
   int bit_factor = 8/bits;
-  ubyte *bytes = (ubyte*)malloc(bit_factor);
+  uint8_t *bytes = (uint8_t*)malloc(bit_factor);
   memset(bytes, 0, bit_factor);
-  ubyte byte;
+  uint8_t byte;
   int i;                                   
   for(i = 0; i < strip_bytes && byte_count < size; 
                             i += bit_factor, byte_count++){
-    if(fread((void*)&byte, sizeof(ubyte), 1, in) < 1){// read ubyte
+    if(fread((void*)&byte, sizeof(uint8_t), 1, in) < 1){// read uint8_t
       fprintf(stderr, "error reading input data\n");
       exit(EXIT_FAILURE);
     }
@@ -347,7 +363,7 @@ static int write_strip(uint strip_offset, uint strip_bytes,
       fprintf(stderr, "error reading image data\n");
       exit(EXIT_FAILURE);
     }
-    encode(bytes, bit_factor, bits, (ubyte*)&byte, 1);
+    encode(bytes, bit_factor, bits, (uint8_t*)&byte, 1);
     if(img == out){
       if(fseek(out, -bit_factor, SEEK_CUR) < 0){
        fprintf(stderr, "error resetting position\n");
@@ -377,13 +393,13 @@ static void write_data(FILE *in, FILE *img, FILE *out, unsigned bits, tif_data d
   fseek(in, 0, SEEK_SET); 
   int bit_factor = 8/bits;
   int encoded_size = sizeof(unsigned)*bit_factor;
-  ubyte *encoded = (ubyte*)malloc(encoded_size);
+  uint8_t *encoded = (uint8_t*)malloc(encoded_size);
   if(fread((void*)encoded, encoded_size, 1, img) < 1){
     fprintf(stderr, "error reading data\n");
     exit(EXIT_FAILURE);
   }
   encode(encoded, encoded_size, bits, 
-        (ubyte*)&size, sizeof(unsigned));
+        (uint8_t*)&size, sizeof(unsigned));
   if(img == out){
     if(fseek(out, -encoded_size, SEEK_CUR) < 0){
       fprintf(stderr, "error resetting position\n");

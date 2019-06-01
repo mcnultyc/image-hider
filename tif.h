@@ -3,5 +3,6 @@
 
 void tif_write_data(char*, char*, int);
 void tif_read_data(char*, char*, int); 
+int  is_tif(char*);
 
 #endif

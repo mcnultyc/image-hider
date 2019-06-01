@@ -235,31 +235,34 @@ static void decode(BYTE *decoded, unsigned decoded_size, unsigned bits,
 }
 
 static int read_strip(DWORD strip_offset, DWORD strip_bytes, 
-                      DWORD size, DWORD byte_count,
+                      DWORD size, DWORD byte_count, unsigned bits,
                       FILE *img, FILE *out){
   if(fseek(img, strip_offset, SEEK_SET) < 0){
     fprintf(stderr, "error seeking strip offset\n");
     exit(EXIT_FAILURE);
   }
-  BYTE bytes[2];
-  memset(bytes, 0, sizeof(bytes));
+  int bit_factor = 8/bits;
+  BYTE *bytes = (BYTE*)malloc(bit_factor);
+  memset((void*)bytes, 0, bit_factor);
+  BYTE byte;
   int i;
-  for(i = 0; i < strip_bytes && byte_count < size; i += 2, byte_count++){
-    if(fread((void*)bytes, sizeof(bytes), 1, img) < 1){
+  for(i = 0; i < strip_bytes && byte_count < size; 
+                i += bit_factor, byte_count++){
+    if(fread((void*)bytes, bit_factor, 1, img) < 1){
       fprintf(stderr, "error reading data\n");
       exit(EXIT_FAILURE);
     }
-    BYTE byte = (bytes[0] & 0xF) << 4;
-    byte |= (bytes[1] & 0xF);
+    decode((BYTE*)&byte, 1, bits, bytes, bit_factor); 
     if(fwrite((void*)&byte, sizeof(BYTE), 1, out) < 1){
       fprintf(stderr, "error updating image\n");
       exit(EXIT_FAILURE);
     }
   }
+  free(bytes);
   return byte_count;
 }
 
-static void read_data(FILE *img, FILE *out, TIFDATA data){ 
+static void read_data(FILE *img, FILE *out, unsigned bits, TIFDATA data){ 
   if(data.strip_count == 0){
     fprintf(stderr, "image has no data\n");
     exit(EXIT_FAILURE);
@@ -282,7 +285,7 @@ static void read_data(FILE *img, FILE *out, TIFDATA data){
   for(i = 0; i < data.strip_count && byte_count < size; i++){
     byte_count = read_strip(data.strip_offsets[i], 
                   data.strip_bytes[i], 
-                  size, byte_count,
+                  size, byte_count, bits,
                   img, out);
   }
 }
@@ -326,11 +329,11 @@ static int write_strip(DWORD strip_offset, DWORD strip_bytes,
     fprintf(stderr, "error seeking strip offset\n");
     exit(EXIT_FAILURE);
   }
-  unsigned bit_factor = 8/bits;
+  int bit_factor = 8/bits;
   BYTE *bytes = (BYTE*)malloc(bit_factor);
   memset(bytes, 0, bit_factor);
   BYTE byte;
-  int i;                                       
+  int i;                                   
   for(i = 0; i < strip_bytes && byte_count < size; 
                             i += bit_factor, byte_count++){
     if(fread((void*)&byte, sizeof(BYTE), 1, in) < 1){// read byte
@@ -341,7 +344,6 @@ static int write_strip(DWORD strip_offset, DWORD strip_bytes,
       fprintf(stderr, "error reading image data\n");
       exit(EXIT_FAILURE);
     }
-    //encode bytes
     encode(bytes, bit_factor, bits, (BYTE*)&byte, 1);
     if(img == out){
       if(fseek(out, -bit_factor, SEEK_CUR) < 0){
@@ -412,7 +414,7 @@ void tif_read_data(char *filename_img, char *filename_out){
   }
   TIFDATA data;
   get_data(filename_img, &data);
-  read_data(img, out, data);
+  read_data(img, out, 4, data);
   free_data(&data);
   fclose(img);
   fclose(out);

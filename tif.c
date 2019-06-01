@@ -208,7 +208,7 @@ static void decode(BYTE *decoded, unsigned decoded_size, unsigned bits,
     fprintf(stderr, "bits to decode must be powers of 2 <= 8\n");
     exit(EXIT_FAILURE);
   }
-  unsigned bit_factor = (8/bits);
+  unsigned bit_factor = 8/bits;
   if(bytes_size != decoded_size * bit_factor){
     fprintf(stderr, "invalid bytes for bit factor\n");
     exit(EXIT_FAILURE);
@@ -297,7 +297,7 @@ static void encode(BYTE *encoded, unsigned encoded_size, unsigned bits,
     fprintf(stderr, "bits to encode must be powers of 2 <= 8\n");
     exit(EXIT_FAILURE);
   }
-  unsigned bit_factor = (8/bits);
+  unsigned bit_factor = 8/bits;
   if(encoded_size != bytes_size * bit_factor){// sizes for encoding data
     fprintf(stderr, "invalid bytes for bit factor\n");
     exit(EXIT_FAILURE);

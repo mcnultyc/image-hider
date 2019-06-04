@@ -24,17 +24,17 @@ typedef enum{
 
 /* TIFF header format */
 typedef struct{ 
-  uint16_t id;          /* uint8_t order identifier */
+  uint16_t id;          /* byte order identifier */
   uint16_t version;     /* TIFF version (0x2a) */
   uint32_t ifd_offset;  /* offset of image file directory */
 }tif_hdr;
 
 /* TIFF tag format */
 typedef struct{ 
-  uint16_t  tag_id;      /* tag identifier*/
+  uint16_t  tag_id;      /* tag identifier */
   uint16_t  type;        /* scalar type of data */
   uint32_t  data_count;  /* number of items in data */
-  uint32_t  data_offset; /* uint8_t offset of data */
+  uint32_t  data_offset; /* byte offset of data */
 }tif_tag;
 
 /* TIFF data information */

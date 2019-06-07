@@ -384,6 +384,12 @@ static void write_data(FILE *in, FILE *img, FILE *out, unsigned bits, tif_data d
     fprintf(stderr, "image has no data\n");
     exit(EXIT_FAILURE);
   }
+  printf("strip count: %d\n", data.strip_count);
+  printf("strip offset[0]: %X\n", data.strip_offsets[0]);
+  printf("strip bytes[0]: %X\n", data.strip_bytes[0]);
+  printf("strip offset[1]: %X\n", data.strip_offsets[1]);
+  printf("strip bytes[1]: %X\n", data.strip_bytes[1]);
+  exit(1);
   if(fseek(img, data.strip_offsets[0], SEEK_SET) < 0){
     fprintf(stderr, "error reading image data\n");
     exit(EXIT_FAILURE);
@@ -461,7 +467,7 @@ void tif_write_data(char *filename_in, char *filename_img, int bits){
   get_data(filename_img, &data);
   if(data.compression != 1){
     fprintf(stderr, "only uncompressed images supported\n");
-    exit(EXIT_FAILURE);
+    //exit(EXIT_FAILURE);
   }
   FILE *in, *img;
   if(!(in = fopen(filename_in, "rb"))){
@@ -486,7 +492,7 @@ void tif_write_data(char *filename_in, char *filename_img, int bits){
         filename_img, useable_size, bits, size);
     exit(EXIT_FAILURE);
   }
-  write_data(in, img, img, 1, data);
+  write_data(in, img, img, bits, data);
   free_data(&data);
   fclose(in);
   fclose(img);

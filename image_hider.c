@@ -38,13 +38,13 @@ int main(int argc, char *argv[]){
     printf("decoding...\n");
     printf("image: %s\n", filename_img);
     printf("output: %s\n", filename);
-    tif_read_data(filename_img, filename, 1);
+    tif_read_data(filename_img, filename, 4);
   }
   else if(encode){
     printf("encoding...\n");
     printf("image: %s\n", filename_img);
     printf("input: %s\n", filename);
-    tif_write_data(filename, filename_img, 1);
+    tif_write_data(filename, filename_img, 4);
   }
 
 

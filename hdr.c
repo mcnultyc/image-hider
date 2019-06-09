@@ -43,9 +43,11 @@ error_t get_images(char *path, image_dir **head){
 
 
 #ifdef _WIN32
-image_dir *get_images(){
+error_t get_images(char *path, image_dir **head){
+  assert(path != NULL);
+  assert(head != NULL && *head != NULL);
   //TODO
-  return NULL;
+  return OK;
 }
 #endif
 

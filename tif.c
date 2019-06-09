@@ -298,12 +298,6 @@ static error_t write_data(FILE *in, FILE *img, FILE *out, unsigned bits, tif_dat
   if(data.strip_count == 0){
     return NO_IMAGE_DATA;
   }
-  printf("strip count: %d\n", data.strip_count);
-  printf("strip offset[0]: %X\n", data.strip_offsets[0]);
-  printf("strip bytes[0]: %X\n", data.strip_bytes[0]);
-  printf("strip offset[1]: %X\n", data.strip_offsets[1]);
-  printf("strip bytes[1]: %X\n", data.strip_bytes[1]);
-  exit(1);
   if(fseek(img, data.strip_offsets[0], SEEK_SET) < 0){
     return FILE_ERROR;
   }  
@@ -378,14 +372,6 @@ error_t tif_write_data(char *filename_in, char *filename_img, int bits){
   assert(filename_in != NULL);
   assert(filename_img != NULL);
   tif_data data;
-<<<<<<< HEAD
-  get_data(filename_img, &data);
-  if(data.compression != 1){
-    fprintf(stderr, "only uncompressed images supported\n");
-    //exit(EXIT_FAILURE);
-  }
-=======
->>>>>>> errors
   FILE *in, *img;
   if(!(in = fopen(filename_in, "rb"))){
     return FILE_ERROR;
@@ -405,12 +391,8 @@ error_t tif_write_data(char *filename_in, char *filename_img, int bits){
   if(size > useable_size){ // not enough image data for bit encoding
     return NOT_ENOUGH_DATA;
   }
-<<<<<<< HEAD
-  write_data(in, img, img, bits, data);
-=======
   ret = write_data(in, img, img, 1, data);
   if(ret != OK){ return ret; }
->>>>>>> errors
   free_data(&data);
   fclose(in);
   fclose(img);

@@ -48,10 +48,6 @@ int main(int argc, char *argv[]){
     printf("image: %s\n", filename_img);
     printf("input: %s\n", filename);
     tif_write_data(filename, filename_img, 4);
-<<<<<<< HEAD
-=======
-    
->>>>>>> errors
   }
 
 

@@ -5,7 +5,10 @@
 #include <assert.h>
 #include "tif.h"
 
-int main(int argc, char *argv[]){ 
+
+
+int main(int argc, char *argv[]){
+
   int decode = 0;
   int encode = 0;
   char *filename_img = NULL;
@@ -45,6 +48,10 @@ int main(int argc, char *argv[]){
     printf("image: %s\n", filename_img);
     printf("input: %s\n", filename);
     tif_write_data(filename, filename_img, 4);
+<<<<<<< HEAD
+=======
+    
+>>>>>>> errors
   }
 
 

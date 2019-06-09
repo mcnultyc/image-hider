@@ -29,13 +29,15 @@ typedef enum{
   FILE_WRITE_ERROR    = -2,
   FILE_READ_ERROR     = -3,
   FILE_NOT_FOUND      = -4,
-  NO_IMAGE_DATA       = -5,
-  INVALID_BITS        = -6,
-  INVALID_ENCODE_SIZE = -7,
-  INVALID_DECODE_SIZE = -8,
-  INVALID_ARGUMENT    = -9,
-  INVALID_COMPRESSION = -10,
-  INVALID_FILE_TYPE   = -11
+  FILE_EMPTY          = -5,
+  NO_IMAGE_DATA       = -6,
+  NOT_ENOUGH_DATA     = -7,
+  INVALID_BITS        = -8,
+  INVALID_ENCODE_SIZE = -9,
+  INVALID_DECODE_SIZE = -10,
+  INVALID_ARGUMENT    = -11,
+  INVALID_COMPRESSION = -12,
+  INVALID_FILE_TYPE   = -13
 }error_t;
 
 /* header for encoding */

@@ -4,7 +4,7 @@ hider: hdr.o tif.o image_hider.o
 hdr.o: hdr.h hdr.c
 	gcc -c hdr.c
 
-tif.o: tif.h tif.c
+tif.o: hdr.h tif.h tif.c
 	gcc -c tif.c
 
 image_hider.o: image_hider.c

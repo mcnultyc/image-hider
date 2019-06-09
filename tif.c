@@ -1,14 +1,7 @@
 /*
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <assert.h>
-#include "hdr.h"
 #include "tif.h"
-
 
 /* */
 typedef enum{
@@ -200,8 +193,8 @@ static error_t get_data(FILE *img, tif_data *dataptr){
 
 /* */
 static error_t read_strip(uint32_t strip_offset, uint32_t strip_bytes, 
-                      uint32_t size, uint32_t byte_count, unsigned bits,
-                      FILE *img, FILE *out){
+                          uint32_t size, uint32_t byte_count, unsigned bits,
+                          FILE *img, FILE *out){
   assert(img != NULL);
   assert(out != NULL);
   if(fseek(img, strip_offset, SEEK_SET) < 0){
@@ -253,6 +246,9 @@ static error_t read_data(FILE *img, FILE *out, unsigned bits, tif_data data){
                   data.strip_bytes[i], 
                   size, byte_count, bits,
                   img, out);
+    if(byte_count < 0){
+      return byte_count; // propagate error
+    }
   }
   free(encoded);
   return OK;
@@ -260,8 +256,8 @@ static error_t read_data(FILE *img, FILE *out, unsigned bits, tif_data data){
 
 /* */
 static error_t write_strip(uint32_t strip_offset, uint32_t strip_bytes, 
-                       uint32_t size, uint32_t byte_count, unsigned bits,
-                       FILE *in, FILE *img, FILE *out){
+                           uint32_t size, uint32_t byte_count, unsigned bits,
+                           FILE *in, FILE *img, FILE *out){
   assert(in != NULL);
   assert(img != NULL);
   assert(out != NULL);
@@ -293,14 +289,6 @@ static error_t write_strip(uint32_t strip_offset, uint32_t strip_bytes,
   }
   free(bytes);
   return byte_count;
-}
-
-static int is_encoded(FILE *img){
-  assert(img != NULL);
-  
-
-
-  return OK;
 }
 
 static error_t write_data(FILE *in, FILE *img, FILE *out, unsigned bits, tif_data data){
@@ -341,6 +329,9 @@ static error_t write_data(FILE *in, FILE *img, FILE *out, unsigned bits, tif_dat
                   data.strip_bytes[i], 
                   size, byte_count, bits,
                   in, img, out);
+    if(byte_count < 0){
+      return byte_count; // propagate error
+    }
   }
   free(encoded);
   return OK;
@@ -357,63 +348,51 @@ static int get_useable_size(tif_data data, int bits){
   return useable_size; 
 }
 
-void tif_read_data(char *filename_img, char *filename_out, int bits){
+error_t tif_read_data(char *filename_img, char *filename_out, int bits){
   assert(filename_img != NULL);
   assert(filename_out != NULL);
   FILE *img, *out;
   if(!(img = fopen(filename_img, "rb"))){ 
-    perror("error opening input image");
-    exit(EXIT_FAILURE);
+    return FILE_ERROR;
   }
   if(!(out = fopen(filename_out, "wb"))){ 
-    perror("error opening output file");
-    exit(EXIT_FAILURE);
+    return FILE_ERROR;
   }
   tif_data data;
-  get_data(filename_img, &data);
-  if(data.compression != 1){
-    fprintf(stderr, "only uncompressed images supported\n");
-    exit(EXIT_FAILURE);
-  }
-  read_data(img, out, 1, data);
+  int ret = get_data(img, &data);
+  if(ret != OK){ return ret; }// propagate error
+  ret = read_data(img, out, 1, data);
+  if(ret != OK){ return ret; }
   free_data(&data);
   fclose(img);
   fclose(out);
 }
 
-void tif_write_data(char *filename_in, char *filename_img, int bits){
+error_t tif_write_data(char *filename_in, char *filename_img, int bits){
   assert(filename_in != NULL);
   assert(filename_img != NULL);
   tif_data data;
-  get_data(filename_img, &data);
-  if(data.compression != 1){
-    fprintf(stderr, "only uncompressed images supported\n");
-    exit(EXIT_FAILURE);
-  }
   FILE *in, *img;
   if(!(in = fopen(filename_in, "rb"))){
-    fprintf(stderr, "error opening input file\n");
-    exit(EXIT_FAILURE);
+    return FILE_ERROR;
   }
   if(!(img = fopen(filename_img, "rb+"))){
-    fprintf(stderr, "error opening image file\n");
-    exit(EXIT_FAILURE);
+    return FILE_ERROR;
   }
+  int ret = get_data(img, &data);
+  if(ret != OK){ return ret; }
   fseek(in, 0, SEEK_END);
   unsigned size = ftell(in); 
   fseek(in, 0, SEEK_SET); 
-  if(size == 0){
-    fprintf(stderr, "%s is empty\n", filename_in);
-    exit(EXIT_FAILURE);
+  if(size == 0){ // empty file
+    return FILE_EMPTY; 
   }
   int useable_size = get_useable_size(data, bits);
-  if(size > useable_size){
-    fprintf(stderr, 
-        "%s has only %u useable bytes for a %u bit encoding. %u are required.\n", 
-        filename_img, useable_size, bits, size);
-    exit(EXIT_FAILURE);
+  if(size > useable_size){ // not enough image data for bit encoding
+    return NOT_ENOUGH_DATA;
   }
-  write_data(in, img, img, 1, data);
+  ret = write_data(in, img, img, 1, data);
+  if(ret != OK){ return ret; }
   free_data(&data);
   fclose(in);
   fclose(img);

@@ -1,5 +1,67 @@
 #include "hdr.h"
 
+int is_tif(char *filename){
+  assert(filename != NULL);
+  FILE *in = fopen(filename, "rb");
+  char buffer[4];
+  if(fread(buffer, 4, 1, in) < 1){
+    return -1;
+  }
+  if(buffer[0] == 0x49 && buffer[1] == 0x49 &&
+     buffer[2] == 0x2A && buffer[3] == 0x00){
+    return 1;
+  }
+  //TODO support big-endian 0x4D4D 
+  fclose(in);
+  return 0;
+}
+
+#ifdef __linux__
+error_t get_images(char *path, image_dir **head){
+  assert(path != NULL);
+  assert(head != NULL && *head != NULL);
+  DIR *dir = opendir(path);
+  struct dirent *dirp;
+  if(dir == NULL){
+    return FILE_ERROR;
+  } 
+  while((dirp = readdir(dir)) != NULL){
+    struct stat info;
+    char filename[100];
+    sprintf(filename, "%s/%s", path, dirp->d_name);             
+    if(stat(filename, &info) >= 0){
+      if((info.st_mode & S_IFMT) == S_IFREG){
+        if(is_tif(filename) > 0){
+          //TODO 
+        } 
+      }
+    }
+  } 
+  return OK; 
+}
+#endif
+
+
+#ifdef _WIN32
+image_dir *get_images(){
+  //TODO
+  return NULL;
+}
+#endif
+
+image_dir* insert_image(image_dir *head, FILE *img){
+  assert(img != NULL);
+  image_dir *node = (image_dir*)malloc(sizeof(image_dir));
+  node->img = img;
+  node->next = head;
+  return node; 
+}
+
+
+void free_dir(image_dir *head){
+  //TODO
+}
+
 error_t encode(uint8_t *encoded, unsigned encoded_size, unsigned bits, 
                uint8_t *bytes,   unsigned bytes_size){
   assert(encoded != NULL);
@@ -34,6 +96,8 @@ error_t encode(uint8_t *encoded, unsigned encoded_size, unsigned bits,
 
 error_t decode(uint8_t *decoded, unsigned decoded_size, unsigned bits, 
                uint8_t *bytes,   unsigned bytes_size){
+  assert(decoded != NULL);
+  assert(bytes != NULL);
   if(bits != 1 && bits != 2 && bits != 4){
     return INVALID_BITS;
   }

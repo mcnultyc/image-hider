@@ -50,18 +50,33 @@ typedef struct{
   uint8_t  bits;     /* number of bits of encoding: 1, 2 of 4 */
 }hdr;
 
-/* */
-error_t decode(uint8_t *decoded, 
-               unsigned decoded_size, 
-               unsigned bits, 
-               uint8_t *bytes, 
-               unsigned bytes_size);
+typedef struct image_dir{
+   FILE *img;
+   struct image_dir *next;
+}image_dir;
+
 
 /* */
-error_t encode(uint8_t *encoded, 
-               unsigned encoded_size, 
-               unsigned bits, 
-               uint8_t *bytes, 
-               unsigned bytes_size);
+image_dir* insert_image(image_dir *head, FILE *img);
+
+/* */
+void free_dir(image_dir *head);
+
+/* */
+int is_encoded(FILE *img);
+
+/* */
+error_t decode(uint8_t *decoded,        /* */
+               unsigned decoded_size,   /* */
+               unsigned bits,           /* */
+               uint8_t *bytes,          /* */
+               unsigned bytes_size);    /* */
+
+/* */
+error_t encode(uint8_t *encoded,        /* */
+               unsigned encoded_size,   /* */
+               unsigned bits,           /* */
+               uint8_t *bytes,          /* */
+               unsigned bytes_size);    /* */
 
 #endif

@@ -5,7 +5,7 @@ int is_tif(char *filename){
   FILE *in = fopen(filename, "rb");
   char buffer[4];
   if(fread(buffer, 4, 1, in) < 1){
-    return -1;
+    return FILE_READ_ERROR;
   }
   if(buffer[0] == 0x49 && buffer[1] == 0x49 &&
      buffer[2] == 0x2A && buffer[3] == 0x00){
@@ -32,7 +32,9 @@ error_t get_images(char *path, image_dir **head){
     if(stat(filename, &info) >= 0){
       if((info.st_mode & S_IFMT) == S_IFREG){
         if(is_tif(filename) > 0){
-          //TODO 
+          //TODO add check for already encoded file
+
+          //*head = insert_image(*head,  
         } 
       }
     }

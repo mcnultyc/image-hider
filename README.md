@@ -4,10 +4,10 @@ uncompressed TIFF files. If can encode any file
 into a given image if the image is large enough.
 
 ## Build
-A makefile is provided.
+The build automation tool `make` is used and a makefile is provided.
 
 ## Encoding
-![Image with executable](https://github.com/mcnultyc/image-hider/blob/master/images/picnic_executable.tif)
+![Image with executable](https://github.com/mcnultyc/image-hider/blob/master/images/picnic_executable.tif)<br>
 As an example of the ability of this tool to encode arbitrary files, I've encoded the executable for this program inside of the image above using the following command `./hider -e images/picnic.tif hider`.
 
 ## Decoding
